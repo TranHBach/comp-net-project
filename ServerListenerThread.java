@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
+
 public class ServerListenerThread extends Thread {
     // Each request is separate by a line => use split("\r\n") to split each line
     private static final String HTTP_NEW_LINE_SEPARATOR = "\r\n";
@@ -26,6 +27,7 @@ public class ServerListenerThread extends Thread {
         this.s = connection;
     }
 
+    @Override
     public void run() {
         try {
             // Optional type is used to provide optional values instead of null references
@@ -98,12 +100,28 @@ public class ServerListenerThread extends Thread {
                         os.write(response.getBytes());
 
                     }
+                    else{
+                        //If none of the path is correct => wrong path
+                        ServeFile file = new ServeFile("notfound.html");
+                        String body = file.strVal();
+                        String statusStr = "HTTP/1.1 404 Not Found";
+                        String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
+                                body);
+                        os.write(response.getBytes());
+                    }
                 } catch (Exception e) {
                 }
                 // Uncomment this line to view the entire request
                 // printRequest(request);
             });
         } catch (Exception e) {
+            e.printStackTrace();
+        } finally{
+            try{
+                s.close();
+            }catch(IOException e){
+                e.printStackTrace();
+            }
         }
     }
 
@@ -181,7 +199,7 @@ public class ServerListenerThread extends Thread {
         return buffer;
     }
 
-    // Function to print method, url, header and body
+   /*  // Function to print method, url, header and body
     private static void printRequest(HttpReq req) {
         System.out.println("Method: " + req.method);
         System.out.println("Url: " + req.url);
@@ -194,7 +212,7 @@ public class ServerListenerThread extends Thread {
         } else {
             System.out.println("Body is empty");
         }
-    }
+    }*/
 
     // This function read headers of the request
     private static Map<String, List<String>> readHeaders(String[] lines) throws Exception {
