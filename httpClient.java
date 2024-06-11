@@ -16,6 +16,7 @@ public class httpClient extends JFrame {
     private JButton submitButton;
     private JEditorPane responseTextArea;
     private JTextField statusCodeField;
+    private JButton addKeyValueButton;
 
     public httpClient() {
         setTitle("HTTP Client");
@@ -39,12 +40,17 @@ public class httpClient extends JFrame {
         addKeyValuePanel();
         JScrollPane requestBodyScrollPane = new JScrollPane(requestBodyPanel);
 
+        //Add key-value button
+        addKeyValueButton = new JButton("Add Key-Value Pair");
+        addKeyValueButton.addActionListener(e -> addKeyValuePanel());
+
         // Submit Button
         submitButton = new JButton("Submit Request");
         submitButton.addActionListener(new SubmitButtonListener());
 
         // Button Panel
-        JPanel buttonPanel = new JPanel(new BorderLayout());
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        buttonPanel.add(addKeyValueButton);
         buttonPanel.add(submitButton);
 
         // Request Panel
