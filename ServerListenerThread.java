@@ -2,8 +2,15 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.rmi.RemoteException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
 
+import javax.sql.rowset.CachedRowSet;
+import javax.sql.rowset.RowSetProvider;
 
 public class ServerListenerThread extends Thread {
     // Each request is separate by a line => use split("\r\n") to split each line
@@ -42,38 +49,40 @@ public class ServerListenerThread extends Thread {
                 try (OutputStream os = s.getOutputStream()) {
                     // Check if method is POST and the url is /submit_form
                     // This is to create a seperate function for this route
-                    if (request.method.equals("POST") && request.url.equals("/submit_form")) {
-                        String receivedBody = new String(request.body, StandardCharsets.UTF_8);
-                        String clientName = receivedBody.split("=")[1];
-                        // the body does not accept empty space so they replace that with "+"
-                        // we need to replace the "+" back to " "
-                        clientName = clientName.replace("+", " ");
-                        try {
-                            // Write to the clientName file with the option APPEND
-                            // instead of overwriting the entire file
-                            // Need to convert to byte[] to write to file
-                            Files.write(Paths.get("clientName.txt"), "%s\n".formatted(clientName).getBytes(),
-                                    StandardOpenOption.APPEND);
-                        } catch (IOException e) {
+                    if (request.method.equals("POST")) {
+                        if (request.url.equals("/search_db")) {
+                            String receivedBody = new String(request.body, StandardCharsets.UTF_8);
+                            String studentName = receivedBody.split("=")[1];
+                            // the body does not accept empty space so they replace that with "+"
+                            // we need to replace the "+" back to " "
+                            studentName = studentName.replace("+", " ");
+                            String SQL = "SELECT * FROM\"students\" WHERE name = \'" + studentName + "\'";
+                            ResultSet rs = null;
+                            CachedRowSet crs = RowSetProvider.newFactory().createCachedRowSet();
+                            postgresAdapter adapter = new postgresAdapter();
+                            Connection conn = adapter.connect();
+                            PreparedStatement pstmt = conn.prepareStatement(SQL);
+                            rs = pstmt.executeQuery();
+                            crs.populate(rs);
+                            String body = new String();
+                            while (crs.next()) {
+                                // System.out.println(crs);
+                                body = new String("name=" + crs.getString("name") + HTTP_NEW_LINE_SEPARATOR
+                                        + "class=" + crs.getString("class") + HTTP_NEW_LINE_SEPARATOR
+                                        + "major=" + crs.getString("major") + HTTP_NEW_LINE_SEPARATOR
+                                        + "intake=" + crs.getString("intake"));
+                            }
+                            String statusStr = "";
+                            if (body.equals("")) {
+                                statusStr = "HTTP/1.1 404 Not Found";
+                            } else {
+                                statusStr = "HTTP/1.1 200 OK";
+                            }
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr,
+                                    body.getBytes().length,
+                                    body);
+                            os.write(response.getBytes());
                         }
-                        // Read file
-                        ServeFile file = new ServeFile("success.html");
-                        String body = file.strVal();
-                        int statusCode = file.status;
-                        // Check if error when reading file
-                        String statusStr = "";
-                        if (statusCode == 200) {
-                            statusStr = "HTTP/1.1 200 OK";
-                        } else if (statusCode == 404) {
-                            statusStr = "HTTP/1.1 404 Not Found";
-                        }
-                        // Return response with status code and content-length in header
-                        // The Header and body must be separated by an extra line
-                        // Hence the \n\n
-                        String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
-                                body);
-                        // Return response (byte[])
-                        os.write(response.getBytes());
                     } else if (request.method.equals("GET")) {
                         // request.url: /index.html
                         // Need to remove the first character "/"
@@ -99,9 +108,43 @@ public class ServerListenerThread extends Thread {
                                 body);
                         os.write(response.getBytes());
 
-                    }
-                    else{
-                        //If none of the path is correct => wrong path
+                    } else if (request.method.equals("PUT")) {
+                        if (request.url.equals("/submit_form")) {
+                            String receivedBody = new String(request.body, StandardCharsets.UTF_8);
+                            String clientName = receivedBody.split("=")[1];
+                            // the body does not accept empty space so they replace that with "+"
+                            // we need to replace the "+" back to " "
+                            clientName = clientName.replace("+", " ");
+                            try {
+                                // Write to the clientName file with the option APPEND
+                                // instead of overwriting the entire file
+                                // Need to convert to byte[] to write to file
+                                Files.write(Paths.get("clientName.txt"), "%s\n".formatted(clientName).getBytes(),
+                                        StandardOpenOption.APPEND);
+                            } catch (IOException e) {
+                            }
+                            // Read file
+                            ServeFile file = new ServeFile("success.html");
+                            String body = file.strVal();
+                            int statusCode = file.status;
+                            // Check if error when reading file
+                            String statusStr = "";
+                            if (statusCode == 200) {
+                                statusStr = "HTTP/1.1 200 OK";
+                            } else if (statusCode == 404) {
+                                statusStr = "HTTP/1.1 404 Not Found";
+                            }
+                            // Return response with status code and content-length in header
+                            // The Header and body must be separated by an extra line
+                            // Hence the \n\n
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr,
+                                    body.getBytes().length,
+                                    body);
+                            // Return response (byte[])
+                            os.write(response.getBytes());
+                        }
+                    } else {
+                        // If none of the path is correct => wrong path
                         ServeFile file = new ServeFile("notfound.html");
                         String body = file.strVal();
                         String statusStr = "HTTP/1.1 404 Not Found";
@@ -116,10 +159,10 @@ public class ServerListenerThread extends Thread {
             });
         } catch (Exception e) {
             e.printStackTrace();
-        } finally{
-            try{
+        } finally {
+            try {
                 s.close();
-            }catch(IOException e){
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
@@ -156,7 +199,7 @@ public class ServerListenerThread extends Thread {
         // Check if there's a body
         if (bodyLength > 0) {
             // get start index of body by find the index of HTTP_HEAD_BODY_SEPARATOR
-            // because the header and body is separated by 
+            // because the header and body is separated by
             int bodyStartIndex = requestHead.indexOf(HTTP_HEAD_BODY_SEPARATOR);
 
             if (bodyStartIndex > 0) {
@@ -181,16 +224,15 @@ public class ServerListenerThread extends Thread {
         // These are referenced code, No need to read this
         // int toRead = stream.available();
         // if (toRead == 0) {
-        //     toRead = DEFAULT_PACKET_SIZE;
+        // toRead = DEFAULT_PACKET_SIZE;
         // }
         // byte[] buffer = new byte[toRead];
         // int read = stream.read(buffer);
         // if (read <= 0) {
-        //     return new byte[0];
+        // return new byte[0];
         // }
         // return read == toRead ? buffer : Arrays.copyOf(buffer, read);
-        
-        
+
         // Check number of byte to read
         int toRead = stream.available();
         byte[] buffer = new byte[toRead];
@@ -199,20 +241,20 @@ public class ServerListenerThread extends Thread {
         return buffer;
     }
 
-   /*  // Function to print method, url, header and body
-    private static void printRequest(HttpReq req) {
-        System.out.println("Method: " + req.method);
-        System.out.println("Url: " + req.url);
-        req.headers.forEach((k, v) -> {
-            System.out.println("Header: %s - %s".formatted(k, v));
-        });
-        System.out.println("Body: ");
-        if (req.body.length > 0) {
-            System.out.println(new String(req.body, StandardCharsets.UTF_8));
-        } else {
-            System.out.println("Body is empty");
-        }
-    }*/
+    // Function to print method, url, header and body
+    // private static void printRequest(HttpReq req) {
+    //     System.out.println("Method: " + req.method);
+    //     System.out.println("Url: " + req.url);
+    //     req.headers.forEach((k, v) -> {
+    //         System.out.println("Header: %s - %s".formatted(k, v));
+    //     });
+    //     System.out.println("Body: ");
+    //     if (req.body.length > 0) {
+    //         System.out.println(new String(req.body, StandardCharsets.UTF_8));
+    //     } else {
+    //         System.out.println("Body is empty");
+    //     }
+    // }
 
     // This function read headers of the request
     private static Map<String, List<String>> readHeaders(String[] lines) throws Exception {
@@ -238,29 +280,30 @@ public class ServerListenerThread extends Thread {
     }
 
     // This function is not needed
-    // private static byte[] readBody(InputStream stream, byte[] readBody, int expectedBodyLength) throws Exception {
-    //     if (readBody.length == expectedBodyLength) {
-    //         System.out.println("This runs");
-    //         return readBody;
-    //     }
+    // private static byte[] readBody(InputStream stream, byte[] readBody, int
+    // expectedBodyLength) throws Exception {
+    // if (readBody.length == expectedBodyLength) {
+    // System.out.println("This runs");
+    // return readBody;
+    // }
 
-    //     ByteArrayOutputStream result = new ByteArrayOutputStream(expectedBodyLength);
-    //     result.write(readBody);
+    // ByteArrayOutputStream result = new ByteArrayOutputStream(expectedBodyLength);
+    // result.write(readBody);
 
-    //     var readBytes = readBody.length;
-    //     byte[] buffer = new byte[DEFAULT_PACKET_SIZE];
+    // var readBytes = readBody.length;
+    // byte[] buffer = new byte[DEFAULT_PACKET_SIZE];
 
-    //     while (readBytes < expectedBodyLength) {
-    //         int read = stream.read(buffer);
-    //         if (read > 0) {
-    //             result.write(buffer, 0, read);
-    //             readBytes += read;
-    //         } else {
-    //             break;
-    //         }
-    //     }
+    // while (readBytes < expectedBodyLength) {
+    // int read = stream.read(buffer);
+    // if (read > 0) {
+    // result.write(buffer, 0, read);
+    // readBytes += read;
+    // } else {
+    // break;
+    // }
+    // }
 
-    //     return result.toByteArray();
+    // return result.toByteArray();
     // }
 
     // This function use the header "Content-length" to get the body length
@@ -273,9 +316,26 @@ public class ServerListenerThread extends Thread {
         }
     }
 
-    // The keyword "record" is used to create an immutable (constant) class to ONLY hold data
+    // The keyword "record" is used to create an immutable (constant) class to ONLY
+    // hold data
     // This case it hold a http request
     private record HttpReq(String method, String url, Map<String, List<String>> headers, byte[] body) {
     }
+
+    public CachedRowSet printItembyProvider(String providerName) throws RemoteException, SQLException {
+        String SQL = "SELECT * FROM\"Retail Sales\" WHERE supplier = \'" + providerName + "\'";
+        ResultSet rs = null;
+        CachedRowSet crs = RowSetProvider.newFactory().createCachedRowSet();
+        postgresAdapter adapter = new postgresAdapter();
+        try {
+            Connection conn = adapter.connect();
+            PreparedStatement pstmt = conn.prepareStatement(SQL);
+            rs = pstmt.executeQuery();
+            crs.populate(rs);
+        } catch (SQLException e) {
+            System.out.println(e);
+        }
+        return crs;
+    };
 
 }
