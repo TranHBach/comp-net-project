@@ -1,17 +1,10 @@
 import java.io.*;
 import java.net.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.rmi.RemoteException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.*;
-
-import javax.sql.rowset.CachedRowSet;
-import javax.sql.rowset.RowSetProvider;
-
 public class ServerListenerThread extends Thread {
     // Each request is separate by a line => use split("\r\n") to split each line
     private static final String HTTP_NEW_LINE_SEPARATOR = "\r\n";
@@ -23,7 +16,7 @@ public class ServerListenerThread extends Thread {
 
     // Byte length is 4
     private static final int HTTP_HEAD_BODY_SEPARATOR_BYTES = HTTP_HEAD_BODY_SEPARATOR
-            .getBytes(StandardCharsets.US_ASCII).length;
+            .getBytes().length;
     // private static final int DEFAULT_PACKET_SIZE = 10_000;
 
     // This is used to determind body length
@@ -51,30 +44,30 @@ public class ServerListenerThread extends Thread {
                     // This is to create a seperate function for this route
                     if (request.method.equals("POST")) {
                         if (request.url.equals("/search_db")) {
-                            String receivedBody = new String(request.body, StandardCharsets.UTF_8);
+                            // Get the value "name" from the body
+                            String receivedBody = new String(request.body);
                             String studentName = receivedBody.split("=")[1];
-                            // the body does not accept empty space so they replace that with "+"
-                            // we need to replace the "+" back to " "
-                            studentName = studentName.replace("+", " ");
-                            String SQL = "SELECT * FROM\"students\" WHERE name = \'" + studentName + "\'";
                             ResultSet rs = null;
-                            CachedRowSet crs = RowSetProvider.newFactory().createCachedRowSet();
+                            // SQL Query to Postgres
+                            String SQL = "DELETE FROM\"students\" WHERE name = \'" + studentName + "\'";
                             postgresAdapter adapter = new postgresAdapter();
+                            // Connect to postgres
                             Connection conn = adapter.connect();
                             PreparedStatement pstmt = conn.prepareStatement(SQL);
+                            // Execute query statement and store it to resultset
                             rs = pstmt.executeQuery();
-                            crs.populate(rs);
-                            String body = new String();
-                            while (crs.next()) {
-                                // System.out.println(crs);
-                                body = new String("name=" + crs.getString("name") + HTTP_NEW_LINE_SEPARATOR
-                                        + "class=" + crs.getString("class") + HTTP_NEW_LINE_SEPARATOR
-                                        + "major=" + crs.getString("major") + HTTP_NEW_LINE_SEPARATOR
-                                        + "intake=" + crs.getString("intake"));
+                            String body = new String("");
+                            while (rs.next()) {
+                                body = new String("name=" + rs.getString("name") + HTTP_NEW_LINE_SEPARATOR
+                                        + "class=" + rs.getString("class") + HTTP_NEW_LINE_SEPARATOR
+                                        + "major=" + rs.getString("major") + HTTP_NEW_LINE_SEPARATOR
+                                        + "intake=" + rs.getString("intake"));
                             }
                             String statusStr = "";
-                            if (body.equals("")) {
+                            // Check if any student was found
+                            if (body.getBytes().length == 0 || body.equals("")) {
                                 statusStr = "HTTP/1.1 404 Not Found";
+                                body = new String("No data found");
                             } else {
                                 statusStr = "HTTP/1.1 200 OK";
                             }
@@ -82,6 +75,13 @@ public class ServerListenerThread extends Thread {
                                     body.getBytes().length,
                                     body);
                             os.write(response.getBytes());
+                        } else {
+                            ServeFile file = new ServeFile("notfound.html");
+                            String body = file.strVal();
+                            String statusStr = "HTTP/1.1 404 Not Found";
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
+                                    body);
+                            os.write(response.getBytes());    
                         }
                     } else if (request.method.equals("GET")) {
                         // request.url: /index.html
@@ -110,11 +110,8 @@ public class ServerListenerThread extends Thread {
 
                     } else if (request.method.equals("PUT")) {
                         if (request.url.equals("/submit_form")) {
-                            String receivedBody = new String(request.body, StandardCharsets.UTF_8);
+                            String receivedBody = new String(request.body);
                             String clientName = receivedBody.split("=")[1];
-                            // the body does not accept empty space so they replace that with "+"
-                            // we need to replace the "+" back to " "
-                            clientName = clientName.replace("+", " ");
                             try {
                                 // Write to the clientName file with the option APPEND
                                 // instead of overwriting the entire file
@@ -142,8 +139,46 @@ public class ServerListenerThread extends Thread {
                                     body);
                             // Return response (byte[])
                             os.write(response.getBytes());
+                        } else {
+                            ServeFile file = new ServeFile("notfound.html");
+                            String body = file.strVal();
+                            String statusStr = "HTTP/1.1 404 Not Found";
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
+                                    body);
+                            os.write(response.getBytes());    
                         }
-                    } else {
+                    } else if (request.method.equals("DELETE")) {
+                        if (request.url.equals("/delete_student")) {
+                            // Get the value "name" from the body
+                            String receivedBody = new String(request.body);
+                            String studentName = receivedBody.split("=")[1];
+                            // SQL Query to Postgres
+                            String SQL = "DELETE FROM\"students\" WHERE name = \'" + studentName + "\'";
+                            postgresAdapter adapter = new postgresAdapter();
+                            // Connect to postgres
+                            Connection conn = adapter.connect();
+                            PreparedStatement pstmt = conn.prepareStatement(SQL);
+                            // Execute delete statement
+                            pstmt.executeUpdate();
+                            String body = new String("Student deleted successfully");
+                            String statusStr = "HTTP/1.1 200 OK";
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr,
+                                    body.getBytes().length,
+                                    body);
+                            os.write(response.getBytes());
+                        } else {
+                            // If client request a method that is not supported
+                            // Return not found html
+                            ServeFile file = new ServeFile("notfound.html");
+                            String body = file.strVal();
+                            String statusStr = "HTTP/1.1 404 Not Found";
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
+                                    body);
+                            os.write(response.getBytes());    
+                        }
+
+                    }
+                     else {
                         // If none of the path is correct => wrong path
                         ServeFile file = new ServeFile("notfound.html");
                         String body = file.strVal();
@@ -180,7 +215,8 @@ public class ServerListenerThread extends Thread {
         // Host: localhost:8080
         // Connection: keep-alive
         // Cache-Control: max-age=0
-        String requestHead = new String(rawRequestHead, StandardCharsets.US_ASCII);
+        String requestHead = new String(rawRequestHead);
+        System.out.println(requestHead);
         // So need to use "\r\n" to split the line
         String[] lines = requestHead.split(HTTP_NEW_LINE_SEPARATOR);
 
@@ -207,7 +243,6 @@ public class ServerListenerThread extends Thread {
                 byte[] readBody = Arrays.copyOfRange(rawRequestHead, bodyStartIndex + HTTP_HEAD_BODY_SEPARATOR_BYTES,
                         rawRequestHead.length);
                 body = readBody;
-                // body = readBody(stream, readBody, bodyLength);
             } else {
                 body = new byte[0];
             }
@@ -221,18 +256,6 @@ public class ServerListenerThread extends Thread {
 
     // Read the entirely of the request
     private static byte[] readRawRequestHead(InputStream stream) throws Exception {
-        // These are referenced code, No need to read this
-        // int toRead = stream.available();
-        // if (toRead == 0) {
-        // toRead = DEFAULT_PACKET_SIZE;
-        // }
-        // byte[] buffer = new byte[toRead];
-        // int read = stream.read(buffer);
-        // if (read <= 0) {
-        // return new byte[0];
-        // }
-        // return read == toRead ? buffer : Arrays.copyOf(buffer, read);
-
         // Check number of byte to read
         int toRead = stream.available();
         byte[] buffer = new byte[toRead];
@@ -242,19 +265,19 @@ public class ServerListenerThread extends Thread {
     }
 
     // Function to print method, url, header and body
-    // private static void printRequest(HttpReq req) {
-    //     System.out.println("Method: " + req.method);
-    //     System.out.println("Url: " + req.url);
-    //     req.headers.forEach((k, v) -> {
-    //         System.out.println("Header: %s - %s".formatted(k, v));
-    //     });
-    //     System.out.println("Body: ");
-    //     if (req.body.length > 0) {
-    //         System.out.println(new String(req.body, StandardCharsets.UTF_8));
-    //     } else {
-    //         System.out.println("Body is empty");
-    //     }
-    // }
+    private static void printRequest(HttpReq req) {
+        System.out.println("Method: " + req.method);
+        System.out.println("Url: " + req.url);
+        req.headers.forEach((k, v) -> {
+            System.out.println("Header: %s - %s".formatted(k, v));
+        });
+        System.out.println("Body: ");
+        if (req.body.length > 0) {
+            System.out.println(new String(req.body));
+        } else {
+            System.out.println("Body is empty");
+        }
+    }
 
     // This function read headers of the request
     private static Map<String, List<String>> readHeaders(String[] lines) throws Exception {
@@ -279,33 +302,6 @@ public class ServerListenerThread extends Thread {
         return headers;
     }
 
-    // This function is not needed
-    // private static byte[] readBody(InputStream stream, byte[] readBody, int
-    // expectedBodyLength) throws Exception {
-    // if (readBody.length == expectedBodyLength) {
-    // System.out.println("This runs");
-    // return readBody;
-    // }
-
-    // ByteArrayOutputStream result = new ByteArrayOutputStream(expectedBodyLength);
-    // result.write(readBody);
-
-    // var readBytes = readBody.length;
-    // byte[] buffer = new byte[DEFAULT_PACKET_SIZE];
-
-    // while (readBytes < expectedBodyLength) {
-    // int read = stream.read(buffer);
-    // if (read > 0) {
-    // result.write(buffer, 0, read);
-    // readBytes += read;
-    // } else {
-    // break;
-    // }
-    // }
-
-    // return result.toByteArray();
-    // }
-
     // This function use the header "Content-length" to get the body length
     // If no content-length => return 0
     private static int getExpectedBodyLength(Map<String, List<String>> headers) {
@@ -321,21 +317,4 @@ public class ServerListenerThread extends Thread {
     // This case it hold a http request
     private record HttpReq(String method, String url, Map<String, List<String>> headers, byte[] body) {
     }
-
-    public CachedRowSet printItembyProvider(String providerName) throws RemoteException, SQLException {
-        String SQL = "SELECT * FROM\"Retail Sales\" WHERE supplier = \'" + providerName + "\'";
-        ResultSet rs = null;
-        CachedRowSet crs = RowSetProvider.newFactory().createCachedRowSet();
-        postgresAdapter adapter = new postgresAdapter();
-        try {
-            Connection conn = adapter.connect();
-            PreparedStatement pstmt = conn.prepareStatement(SQL);
-            rs = pstmt.executeQuery();
-            crs.populate(rs);
-        } catch (SQLException e) {
-            System.out.println(e);
-        }
-        return crs;
-    };
-
 }

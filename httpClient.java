@@ -26,9 +26,8 @@ public class httpClient extends JFrame {
         // Method and Path Panel
         JPanel methodPathPanel = new JPanel(new FlowLayout());
         methodPathPanel.add(new JLabel("Method:"));
-        //Three method: Get Post Put
         //Drop down list
-        methodComboBox = new JComboBox<>(new String[]{"GET", "POST", "PUT"});
+        methodComboBox = new JComboBox<>(new String[]{"GET", "POST", "PUT", "DELETE"});
         methodPathPanel.add(methodComboBox);
         methodPathPanel.add(new JLabel("Path:"));
         pathTextField = new JTextField("/", 30);
@@ -159,8 +158,7 @@ public class httpClient extends JFrame {
                 connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
                 connection.setRequestMethod(method);
 
-                if ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method)) {
-                    //There is a body
+                if ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method)) {
                     connection.setDoOutput(true);
                     //Establish output stream
                     try (OutputStream os = connection.getOutputStream()) {
