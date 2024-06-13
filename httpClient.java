@@ -27,6 +27,7 @@ public class httpClient extends JFrame {
         JPanel methodPathPanel = new JPanel(new FlowLayout());
         methodPathPanel.add(new JLabel("Method:"));
         //Three method: Get Post Put
+        //Drop down list
         methodComboBox = new JComboBox<>(new String[]{"GET", "POST", "PUT"});
         methodPathPanel.add(methodComboBox);
         methodPathPanel.add(new JLabel("Path:"));
