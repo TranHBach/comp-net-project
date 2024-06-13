@@ -129,7 +129,7 @@ public class httpClient extends JFrame {
                 String value = valueField.getText();
                 if (!key.isEmpty() && !value.isEmpty()) {
                     if (requestBody.length() > 0) {
-                        requestBody.append("&");
+                        requestBody.append("\n");
                     }
                     requestBody.append(key).append("=").append(value);
                 }
