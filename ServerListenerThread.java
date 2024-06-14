@@ -47,9 +47,10 @@ public class ServerListenerThread extends Thread {
                             // Get the value "name" from the body
                             String receivedBody = new String(request.body);
                             String studentName = receivedBody.split("=")[1];
+                            System.out.println(studentName);
                             ResultSet rs = null;
                             // SQL Query to Postgres
-                            String SQL = "DELETE FROM\"students\" WHERE name = \'" + studentName + "\'";
+                            String SQL = "SELECT * FROM\"students\" WHERE name = \'" + studentName + "\'";
                             postgresAdapter adapter = new postgresAdapter();
                             // Connect to postgres
                             Connection conn = adapter.connect();
@@ -74,6 +75,7 @@ public class ServerListenerThread extends Thread {
                             String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr,
                                     body.getBytes().length,
                                     body);
+                            // System.out.println(response);
                             os.write(response.getBytes());
                         } else {
                             ServeFile file = new ServeFile("notfound.html");
@@ -106,6 +108,7 @@ public class ServerListenerThread extends Thread {
                         // Hence the \n\n
                         String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
                                 body);
+                        System.out.println(response);
                         os.write(response.getBytes());
 
                     } else if (request.method.equals("PUT")) {
@@ -190,7 +193,7 @@ public class ServerListenerThread extends Thread {
                 } catch (Exception e) {
                 }
                 // Uncomment this line to view the entire request
-                // printRequest(request);
+                printRequest(request);
             });
         } catch (Exception e) {
             e.printStackTrace();
@@ -216,7 +219,7 @@ public class ServerListenerThread extends Thread {
         // Connection: keep-alive
         // Cache-Control: max-age=0
         String requestHead = new String(rawRequestHead);
-        System.out.println(requestHead);
+        // System.out.println(requestHead);
         // So need to use "\r\n" to split the line
         String[] lines = requestHead.split(HTTP_NEW_LINE_SEPARATOR);
 
