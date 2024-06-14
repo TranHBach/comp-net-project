@@ -26,6 +26,7 @@ public class httpClient extends JFrame {
         // Method and Path Panel
         JPanel methodPathPanel = new JPanel(new FlowLayout());
         methodPathPanel.add(new JLabel("Method:"));
+        //Drop down list
         methodComboBox = new JComboBox<>(new String[]{"GET", "POST", "PUT", "DELETE"});
         methodPathPanel.add(methodComboBox);
         methodPathPanel.add(new JLabel("Path:"));
@@ -128,7 +129,7 @@ public class httpClient extends JFrame {
                 String value = valueField.getText();
                 if (!key.isEmpty() && !value.isEmpty()) {
                     if (requestBody.length() > 0) {
-                        requestBody.append("&");
+                        requestBody.append("\n");
                     }
                     requestBody.append(key).append("=").append(value);
                 }
