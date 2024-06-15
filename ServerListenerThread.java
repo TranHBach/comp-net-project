@@ -47,6 +47,11 @@ public class ServerListenerThread extends Thread {
                         if (request.url.equals("/search_db")) {
                             // Get the value "name" from the body
                             String receivedBody = new String(request.body);
+                            // Body should be like
+                            // Key1=Value1
+                            // Key2=Value2
+                            // Key3=Value3
+                            // => split using "\n"
                             String[] bodylines = receivedBody.split("\n");
                             HashMap<String, String> bodyMap = new HashMap<>();
                             for (int i = 0; i < bodylines.length; i++) {
@@ -125,6 +130,11 @@ public class ServerListenerThread extends Thread {
                         if (request.url.equals("/submit_form")) {
                             String receivedBody = new String(request.body);
                             // Split each lines in body
+                            // Body should be like
+                            // Key1=Value1
+                            // Key2=Value2
+                            // Key3=Value3
+                            // => split using "\n"
                             String[] bodylines = receivedBody.split("\n");
                             HashMap<String, String> bodyMap = new HashMap<>();
                             for (int i = 0; i < bodylines.length; i++) {
@@ -176,6 +186,11 @@ public class ServerListenerThread extends Thread {
                         if (request.url.equals("/delete_student")) {
                             // Get the value "name" from the body
                             String receivedBody = new String(request.body);
+                            // Body should be like
+                            // Key1=Value1
+                            // Key2=Value2
+                            // Key3=Value3
+                            // => split using "\n"
                             String[] bodylines = receivedBody.split("\n");
                             HashMap<String, String> bodyMap = new HashMap<>();
                             for (int i = 0; i < bodylines.length; i++) {
