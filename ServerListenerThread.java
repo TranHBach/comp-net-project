@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.*;
+
 public class ServerListenerThread extends Thread {
     // Each request is separate by a line => use split("\r\n") to split each line
     private static final String HTTP_NEW_LINE_SEPARATOR = "\r\n";
@@ -46,11 +47,19 @@ public class ServerListenerThread extends Thread {
                         if (request.url.equals("/search_db")) {
                             // Get the value "name" from the body
                             String receivedBody = new String(request.body);
-                            String studentName = receivedBody.split("=")[1];
-                            System.out.println(studentName);
+                            String[] bodylines = receivedBody.split("\n");
+                            HashMap<String, String> bodyMap = new HashMap<>();
+                            for (int i = 0; i < bodylines.length; i++) {
+                                // Split the String with char "="
+                                String[] keyValue = bodylines[i].split("=");
+                                // Key is 1st item in splitted String, value is 2nd
+                                String key = keyValue[0];
+                                String value = keyValue[1];
+                                bodyMap.put(key, value);
+                            }
                             ResultSet rs = null;
                             // SQL Query to Postgres
-                            String SQL = "SELECT * FROM\"students\" WHERE name = \'" + studentName + "\'";
+                            String SQL = "SELECT * FROM\"students\" WHERE name = \'" + bodyMap.get("name") + "\'";
                             postgresAdapter adapter = new postgresAdapter();
                             // Connect to postgres
                             Connection conn = adapter.connect();
@@ -81,9 +90,10 @@ public class ServerListenerThread extends Thread {
                             ServeFile file = new ServeFile("notfound.html");
                             String body = file.strVal();
                             String statusStr = "HTTP/1.1 404 Not Found";
-                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr,
+                                    body.getBytes().length,
                                     body);
-                            os.write(response.getBytes());    
+                            os.write(response.getBytes());
                         }
                     } else if (request.method.equals("GET")) {
                         // request.url: /index.html
@@ -114,15 +124,26 @@ public class ServerListenerThread extends Thread {
                     } else if (request.method.equals("PUT")) {
                         if (request.url.equals("/submit_form")) {
                             String receivedBody = new String(request.body);
-                            String clientName = receivedBody.split("=")[1];
-                            try {
-                                // Write to the clientName file with the option APPEND
-                                // instead of overwriting the entire file
-                                // Need to convert to byte[] to write to file
-                                Files.write(Paths.get("clientName.txt"), "%s\n".formatted(clientName).getBytes(),
-                                        StandardOpenOption.APPEND);
-                            } catch (IOException e) {
+                            // Split each lines in body
+                            String[] bodylines = receivedBody.split("\n");
+                            HashMap<String, String> bodyMap = new HashMap<>();
+                            for (int i = 0; i < bodylines.length; i++) {
+                                // Split the String with char "="
+                                String[] keyValue = bodylines[i].split("=");
+                                // Key is 1st item in splitted String, value is 2nd
+                                String key = keyValue[0];
+                                String value = keyValue[1];
+                                bodyMap.put(key, value);
                             }
+                            String SQL = "INSERT INTO \"students\" (name, class, major, intake) VALUES (\'"
+                                    + bodyMap.get("name") + "\', \'" + bodyMap.get("class")
+                                    + "\', \'" + bodyMap.get("major") + "\', " + bodyMap.get("intake") + ");";
+                            postgresAdapter adapter = new postgresAdapter();
+                            // Connect to postgres
+                            Connection conn = adapter.connect();
+                            PreparedStatement pstmt = conn.prepareStatement(SQL);
+                            // Execute delete statement
+                            pstmt.executeUpdate();
                             // Read file
                             ServeFile file = new ServeFile("success.html");
                             String body = file.strVal();
@@ -146,25 +167,45 @@ public class ServerListenerThread extends Thread {
                             ServeFile file = new ServeFile("notfound.html");
                             String body = file.strVal();
                             String statusStr = "HTTP/1.1 404 Not Found";
-                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr,
+                                    body.getBytes().length,
                                     body);
-                            os.write(response.getBytes());    
+                            os.write(response.getBytes());
                         }
                     } else if (request.method.equals("DELETE")) {
                         if (request.url.equals("/delete_student")) {
                             // Get the value "name" from the body
                             String receivedBody = new String(request.body);
-                            String studentName = receivedBody.split("=")[1];
+                            String[] bodylines = receivedBody.split("\n");
+                            HashMap<String, String> bodyMap = new HashMap<>();
+                            for (int i = 0; i < bodylines.length; i++) {
+                                // Split the String with char "="
+                                String[] keyValue = bodylines[i].split("=");
+                                // Key is 1st item in splitted String, value is 2nd
+                                String key = keyValue[0];
+                                String value = keyValue[1];
+                                bodyMap.put(key, value);
+                            }
                             // SQL Query to Postgres
-                            String SQL = "DELETE FROM\"students\" WHERE name = \'" + studentName + "\'";
+                            String SQL = "DELETE FROM\"students\" WHERE name = \'" + bodyMap.get("name") + "\'";
                             postgresAdapter adapter = new postgresAdapter();
                             // Connect to postgres
                             Connection conn = adapter.connect();
                             PreparedStatement pstmt = conn.prepareStatement(SQL);
                             // Execute delete statement
                             pstmt.executeUpdate();
-                            String body = new String("Student deleted successfully");
-                            String statusStr = "HTTP/1.1 200 OK";
+                            // Read file
+                            ServeFile file = new ServeFile("success.html");
+                            // Convert type readFile to String
+                            String body = file.strVal();
+                            int statusCode = file.status;
+                            // Check if error when reading file
+                            String statusStr = "";
+                            if (statusCode == 200) {
+                                statusStr = "HTTP/1.1 200 OK";
+                            } else if (statusCode == 404) {
+                                statusStr = "HTTP/1.1 404 Not Found";
+                            }
                             String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr,
                                     body.getBytes().length,
                                     body);
@@ -175,13 +216,13 @@ public class ServerListenerThread extends Thread {
                             ServeFile file = new ServeFile("notfound.html");
                             String body = file.strVal();
                             String statusStr = "HTTP/1.1 404 Not Found";
-                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr, body.getBytes().length,
+                            String response = "%s\nContent-Length: %d\n\n%s".formatted(statusStr,
+                                    body.getBytes().length,
                                     body);
-                            os.write(response.getBytes());    
+                            os.write(response.getBytes());
                         }
 
-                    }
-                     else {
+                    } else {
                         // If none of the path is correct => wrong path
                         ServeFile file = new ServeFile("notfound.html");
                         String body = file.strVal();
